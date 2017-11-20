@@ -64,7 +64,10 @@ subset PositiveInt of Int where * > 0;
 subset ExFile of Str where { $_ === Nil || $_.IO.e };
 
 sub MAIN (PositiveInt :$queue-size is copy = 30, Str :$suffix = ' #quotefile',
-    ExFile :$queue-file = ExFile, ExFile :$completed-file = ExFile, *@files) {
+    PositiveInt :$tweet-length = 140, ExFile :$queue-file = ExFile,
+    ExFile :$completed-file = ExFile, *@files) {
+  die "--tweet-length=$tweet-length is not longer than --suffix=\"$suffix\""
+    if $tweet-length <= $suffix.chars;
   # Order of text transformations
   my @transforms :=
     &substitute-dashes,
@@ -72,10 +75,10 @@ sub MAIN (PositiveInt :$queue-size is copy = 30, Str :$suffix = ' #quotefile',
     &single-space,
     &educate-single,
     &educate-double,
-    &if-longer-than(140 - $suffix.chars, &trim-dash),
-    &if-longer-than(140 - $suffix.chars, &strip-scheme),
-    &if-longer-than(140 - $suffix.chars, &substitute-ligatures),
-    &if-longer-than(140 - $suffix.chars, &strip-self-attribution);
+    &if-longer-than($tweet-length - $suffix.chars, &trim-dash),
+    &if-longer-than($tweet-length - $suffix.chars, &strip-scheme),
+    &if-longer-than($tweet-length - $suffix.chars, &substitute-ligatures),
+    &if-longer-than($tweet-length - $suffix.chars, &strip-self-attribution);
   my @queue-lines = do with $queue-file { $_.IO.lines } else { [] };
   my @completed-lines = do with $completed-file { $_.IO.lines } else { [] };
   my $skip = set(|@queue-lines, |@completed-lines);
@@ -87,7 +90,7 @@ sub MAIN (PositiveInt :$queue-size is copy = 30, Str :$suffix = ' #quotefile',
     my $text = @lines.pop;
     $text = $_($text) for @transforms;
     $text ~= $suffix;
-    @results.push($text) if $text ∉ $skip && $text.NFC.codes <= 140;
+    @results.push($text) if $text ∉ $skip && $text.NFC.codes <= $tweet-length;
   }
   .say for @results;
 }
