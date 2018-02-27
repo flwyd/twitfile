@@ -2,6 +2,7 @@
 
 use v6.c;
 use strict;
+use fatal;
 
 sub substitute-dashes (Str:D $text) returns Str:D {
   $text.subst(/ \- ** 3 <!before \-> /, "\c[EM DASH]", :g)
@@ -77,14 +78,18 @@ sub MAIN (PositiveInt :$queue-size is copy = 30, Str :$suffix = ' #quotefile',
     &educate-double,
     &if-longer-than($tweet-length - $suffix.chars, &trim-dash),
     &if-longer-than($tweet-length - $suffix.chars, &strip-scheme),
-    &if-longer-than($tweet-length - $suffix.chars, &substitute-ligatures),
+    # Twitter's switch to 280 changed character counting to no longer be NFC
+    # length, despite unchanged documentation.  High-ish code points count as
+    # two characters, so ligatures don't save on character count any more.
+    #&if-longer-than($tweet-length - $suffix.chars, &substitute-ligatures),
     &if-longer-than($tweet-length - $suffix.chars, &strip-self-attribution);
   my @queue-lines = do with $queue-file { $_.IO.lines } else { [] };
   my @completed-lines = do with $completed-file { $_.IO.lines } else { [] };
   my $skip = set(|@queue-lines, |@completed-lines);
   $queue-size -= @queue-lines.elems min $queue-size;
   # Shuffle all input lines
-  my @lines = IO::ArgFiles.new(args => @files).lines.pick(*);
+  my @lines = IO::CatHandle.new(@files).lines.pick(*);
+  die "Found no lines in @files[]" if @lines.elems == 0;
   my @results;
   while @results.elems < $queue-size and @lines {
     my $text = @lines.pop;
